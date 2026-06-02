@@ -40,7 +40,7 @@ module dram_driver(
     reg [1:0] reg_offset;
     reg [31:0] reg_wdata;
     reg [31:0] reg_rdata_raw;
-    reg reg_wen;
+    reg reg_wen, reg_wen_delay;
 
     assign offset = perip_addr[1:0];
     assign perip_rdata = dout;
@@ -96,10 +96,16 @@ module dram_driver(
             reg_mask <= perip_mask;
             reg_offset <= perip_addr[1:0];
             reg_wdata <= perip_wdata;
-            reg_rdata_raw <= dram_rdata_raw;
+            
+            reg_wen_delay <= 1;
+        end
+        else if (reg_wen_delay) begin
+            reg_rdata_raw <= dram_rdata_raw;//数据读出
+
+            reg_wen_delay <= 0;
             reg_wen <= 1;
         end
-        else begin
+        else if (reg_wen) begin
             reg_wen <= 0;
         end
     end

@@ -33,9 +33,17 @@ module blk_mem_gen_0(
 import "DPI-C" function void dram_read(input int addr, output int data);
 import "DPI-C" function void dram_write(input int addr, input int data);
 /* 同步读，同步写 */
+assign douta = reg_douta;
+
+reg [31:0] reg_douta;
+reg [31:0] temp_douta;
+
+always @(*) begin
+    dram_read({12'h801, 2'b00, addra, 2'b00}, temp_douta);
+end
 
 always @(posedge clka) begin
-    dram_read({12'h801, 2'b00, addra, 2'b00}, douta);
+    reg_douta <= temp_douta;
     if (wea) begin
         dram_write({12'h801, 2'b00, addra, 2'b00}, dina);
     end
