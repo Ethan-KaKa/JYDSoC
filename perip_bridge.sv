@@ -24,20 +24,26 @@ module perip_bridge(
     input  logic         cnt_clk			,
     input  logic         rst                ,
 
-    input  logic [31:0]  perip_addr			,
-    input  logic [31:0]  perip_wdata		,
-    input  logic         perip_wen			,
-	input  logic [1:0]	 perip_mask			,
-    output logic [31:0]  perip_rdata		,
+    // DRAM 端口（地址分流已在 JYD_top 完成）
+    input  logic [31:0]  dram_addr			,
+    input  logic [31:0]  dram_wdata		,
+    input  logic         dram_wen			,
+	input  logic [1:0]	 dram_mask			,
+    output logic [31:0]  dram_rdata		,
+
+    // MMIO 端口
+    input  logic [31:0]  mmio_addr			,
+    input  logic [31:0]  mmio_wdata		,
+    input  logic         mmio_wen			,
+	input  logic [1:0]	 mmio_mask			,
+    output logic [31:0]  mmio_rdata		,
 
     input  logic [63:0]  virtual_sw_input	,
-    input  logic [7:0]   virtual_key_input	,	
+    input  logic [7:0]   virtual_key_input	,
 
 	output logic [39:0]  virtual_seg_output	,
     output logic [31:0]  virtual_led_output
 );
-    localparam DRAM_ADDR_START = 32'h8010_0000;
-    localparam DRAM_ADDR_END   = 32'h8013_FFFF;
     localparam SW0_ADDR  = 32'h8020_0000;  // sw[31:0]
     localparam SW1_ADDR  = 32'h8020_0004;  // sw[63:32]
     localparam KEY_ADDR  = 32'h8020_0010;  // key[7:0]
@@ -46,54 +52,52 @@ module perip_bridge(
     localparam CNT_ADDR  = 32'h8020_0050;  // counter
 
     logic [31:0] LED;
-    logic [31:0] seg_wdata, cnt_rdata, mmio_rdata, dram_rdata;
+    logic [31:0] seg_wdata, cnt_rdata, mmio_mux_rdata;
     logic [39:0] seg_output;
 
     //从输入寄存判断出输出的类型（减少输出端延迟）
-    reg is_SW0, is_SW1, is_KEY, is_SEG, is_DRAM, is_CNT;
+    reg is_SW0, is_SW1, is_KEY, is_SEG, is_CNT;
     always @(posedge clk) begin
         if (rst) begin
             is_SW0 <= 0;
             is_SW1 <= 0;
             is_KEY <= 0;
             is_SEG <= 0;
-            is_DRAM <= 0;
             is_CNT <= 0;
         end
         else begin
-            is_SW0 <= perip_addr == SW0_ADDR;
-            is_SW1 <= perip_addr == SW1_ADDR;
-            is_KEY <= perip_addr == KEY_ADDR;
-            is_SEG <= perip_addr == SEG_ADDR;
-            is_DRAM <= perip_addr >= DRAM_ADDR_START && perip_addr < DRAM_ADDR_END;
-            is_CNT <= perip_addr == CNT_ADDR;
+            is_SW0 <= mmio_addr == SW0_ADDR;
+            is_SW1 <= mmio_addr == SW1_ADDR;
+            is_KEY <= mmio_addr == KEY_ADDR;
+            is_SEG <= mmio_addr == SEG_ADDR;
+            is_CNT <= mmio_addr == CNT_ADDR;
         end
     end
 
 
-    // we don't care perip_mask in LED, SEG, SW & KEY, only care in DRAM
+    // we don't care mmio_mask in LED, SEG, SW & KEY
     // write process
     always_ff @(posedge clk) begin
-        if (perip_wen) begin
-            case (perip_addr)
-                LED_ADDR:   LED <= perip_wdata;
-                SEG_ADDR:   seg_wdata <= perip_wdata;
+        if (mmio_wen) begin
+            case (mmio_addr)
+                LED_ADDR:   LED <= mmio_wdata;
+                SEG_ADDR:   seg_wdata <= mmio_wdata;
             endcase
         end
     end
 
     // read process: in one cycle
     always @(posedge clk) begin
-        if (~perip_wen) begin
-            case (perip_addr)
-                SW0_ADDR:  mmio_rdata <= virtual_sw_input[31:0];
-                SW1_ADDR:  mmio_rdata <= virtual_sw_input[63:32];
-                KEY_ADDR:  mmio_rdata <= {24'd0, virtual_key_input};
-                SEG_ADDR:  mmio_rdata <= seg_wdata;
-                default:   mmio_rdata <= 32'hDEAD_BEEF;
+        if (~mmio_wen) begin
+            case (mmio_addr)
+                SW0_ADDR:  mmio_mux_rdata <= virtual_sw_input[31:0];
+                SW1_ADDR:  mmio_mux_rdata <= virtual_sw_input[63:32];
+                KEY_ADDR:  mmio_mux_rdata <= {24'd0, virtual_key_input};
+                SEG_ADDR:  mmio_mux_rdata <= seg_wdata;
+                default:   mmio_mux_rdata <= 32'hDEAD_BEEF;
             endcase
         end else begin
-            mmio_rdata = 32'h0;
+            mmio_mux_rdata = 32'h0;
         end
     end
 
@@ -115,14 +119,14 @@ module perip_bridge(
     assign seg_output[37] = 0;
     
 
-    // dram rw
+    // dram rw（地址分流已在 JYD_top 完成，dram_wen 直接使用）
     dram_driver dram_driver_inst (
         .clk				(clk),
         .rst				(rst),
-        .perip_addr			(perip_addr[17:0]),
-        .perip_wdata		(perip_wdata),
-        .perip_mask			(perip_mask),
-        .dram_wen 			(perip_wen & (perip_addr >= DRAM_ADDR_START && perip_addr < DRAM_ADDR_END)),
+        .perip_addr			(dram_addr[17:0]),
+        .perip_wdata		(dram_wdata),
+        .perip_mask			(dram_mask),
+        .dram_wen 			(dram_wen),
         .perip_rdata		(dram_rdata)
     );
 
@@ -130,17 +134,16 @@ module perip_bridge(
     counter counter_inst (
         .clk				(cnt_clk),
         .rst                (rst),
-        .perip_wdata		(perip_wdata),
-        .cnt_wen 			(perip_wen & (perip_addr == CNT_ADDR)),
+        .perip_wdata		(mmio_wdata),
+        .cnt_wen 			(mmio_wen & (mmio_addr == CNT_ADDR)),
         .perip_rdata		(cnt_rdata)
     );
 
 
-    assign perip_rdata = {32{is_SW0}} & mmio_rdata |
-                        {32{is_SW1}} & mmio_rdata |
-                        {32{is_KEY}} & mmio_rdata |
-                        {32{is_SEG}} & mmio_rdata |
-                        {32{is_DRAM}} & dram_rdata |
+    assign mmio_rdata = {32{is_SW0}} & mmio_mux_rdata |
+                        {32{is_SW1}} & mmio_mux_rdata |
+                        {32{is_KEY}} & mmio_mux_rdata |
+                        {32{is_SEG}} & mmio_mux_rdata |
                         {32{is_CNT}} & cnt_rdata;
     
     assign virtual_led_output = LED;

@@ -41,10 +41,13 @@ module student_top#(
     logic [11:0] inst_addr;
     logic [31:0] instruction;
 
-    // perip
-    logic [31:0] perip_addr, perip_wdata, perip_rdata;
-    logic perip_wen;
-    logic [1:0] perip_mask;
+    // perip: DRAM 端口 + MMIO 端口
+    logic [31:0] dram_addr, dram_wdata, dram_rdata;
+    logic        dram_wen;
+    logic [1:0]  dram_mask;
+    logic [31:0] mmio_addr, mmio_wdata, mmio_rdata;
+    logic        mmio_wen;
+    logic [1:0]  mmio_mask;
 
     // 16KB = 2^12 * 32bit
     assign inst_addr = pc[13:2];
@@ -57,12 +60,19 @@ module student_top#(
         .irom_addr          (pc),             
         .irom_data          (instruction),   
 
-        // Interface to DRAM & periphera
-        .perip_addr         (perip_addr),     
-        .perip_wen          (perip_wen),     
-        .perip_mask         (perip_mask),   
-        .perip_wdata        (perip_wdata),    
-        .perip_rdata        (perip_rdata)     
+        // Interface to DRAM
+        .dram_addr          (dram_addr),
+        .dram_wen           (dram_wen),
+        .dram_mask          (dram_mask),
+        .dram_wdata         (dram_wdata),
+        .dram_rdata         (dram_rdata),
+
+        // Interface to MMIO peripherals
+        .mmio_addr          (mmio_addr),
+        .mmio_wen           (mmio_wen),
+        .mmio_mask          (mmio_mask),
+        .mmio_wdata         (mmio_wdata),
+        .mmio_rdata         (mmio_rdata)
     );
 
     IROM Mem_IROM (
@@ -75,11 +85,16 @@ module student_top#(
         .clk				(w_cpu_clk),
         .cnt_clk            (w_clk_50Mhz),
         .rst                (w_clk_rst),
-        .perip_addr			(perip_addr),
-        .perip_wdata		(perip_wdata),
-        .perip_wen			(perip_wen),
-        .perip_mask			(perip_mask),
-        .perip_rdata		(perip_rdata),
+        .dram_addr			(dram_addr),
+        .dram_wdata			(dram_wdata),
+        .dram_wen			(dram_wen),
+        .dram_mask			(dram_mask),
+        .dram_rdata			(dram_rdata),
+        .mmio_addr			(mmio_addr),
+        .mmio_wdata			(mmio_wdata),
+        .mmio_wen			(mmio_wen),
+        .mmio_mask			(mmio_mask),
+        .mmio_rdata			(mmio_rdata),
         .virtual_sw_input	(virtual_sw),
         .virtual_key_input	(virtual_key),	
         .virtual_seg_output	(virtual_seg),
