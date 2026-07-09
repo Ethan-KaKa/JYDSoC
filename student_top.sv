@@ -38,8 +38,8 @@ module student_top#(
 
     // IROM
     logic [31:0] pc;
-    logic [11:0] inst_addr;
-    logic [31:0] instruction;
+    logic [10:0] inst_addr;
+    logic [63:0] instruction;
 
     // perip: DRAM 端口 + MMIO 端口
     logic [31:0] dram_addr, dram_wdata, dram_rdata;
@@ -49,8 +49,8 @@ module student_top#(
     logic        mmio_wen;
     logic [1:0]  mmio_mask;
 
-    // 16KB = 2^12 * 32bit
-    assign inst_addr = pc[13:2];
+    // 16KB = 2^11 * 64bit
+    assign inst_addr = pc[13:3];
 
     myCPU Core_cpu (
         .cpu_rst            (w_clk_rst),
