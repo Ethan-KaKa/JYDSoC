@@ -25,11 +25,13 @@ module perip_bridge(
     input  logic         rst                ,
 
     // DRAM 端口（地址分流已在 JYD_top 完成）
+    // 读一次返回 64 位整行（dram_rdata[31:0] = addr[2]==0 的字，[63:32] = addr[2]==1 的字）；
+    // 写通道仍是 32 位（低位有效、未定位），由 dram_driver 做 read-modify-write。
     input  logic [31:0]  dram_addr			,
     input  logic [31:0]  dram_wdata		,
     input  logic         dram_wen			,
 	input  logic [1:0]	 dram_mask			,
-    output logic [31:0]  dram_rdata		,
+    output logic [63:0]  dram_rdata		,
 
     // MMIO 端口
     input  logic [31:0]  mmio_addr			,
@@ -97,7 +99,11 @@ module perip_bridge(
                 default:   mmio_mux_rdata <= 32'hDEAD_BEEF;
             endcase
         end else begin
-            mmio_mux_rdata = 32'h0;
+            // 必须是非阻塞：与上面的 case 分支同属一个时钟块。
+            // 原为阻塞赋值 `=`（always_comb 改成时钟块时漏改），在 mmio_wen 只有 1 拍时
+            // 几乎不敏化；myCPU 侧把 MMIO 写脉冲展宽到 8 拍后（CDC：counter 在 50MHz 域
+            // 采样 cnt_wen），这个分支会连续活 8 拍，混合赋值的仿真/综合差异会真的暴露。
+            mmio_mux_rdata <= 32'h0;
         end
     end
 

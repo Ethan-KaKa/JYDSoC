@@ -42,7 +42,9 @@ module student_top#(
     logic [63:0] instruction;
 
     // perip: DRAM 端口 + MMIO 端口
-    logic [31:0] dram_addr, dram_wdata, dram_rdata;
+    // DRAM 读一次回 64 位整行（dcache 的块 = 8 字节）；写通道仍是 32 位
+    logic [31:0] dram_addr, dram_wdata;
+    logic [63:0] dram_rdata;
     logic        dram_wen;
     logic [1:0]  dram_mask;
     logic [31:0] mmio_addr, mmio_wdata, mmio_rdata;
